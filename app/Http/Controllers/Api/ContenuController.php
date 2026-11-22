@@ -80,25 +80,27 @@ class ContenuController extends Controller
         return $this->index($request, 'actualite');
     }
 
-    public function show(Contenu $contenu): JsonResponse
+    public function show(string $contenu): JsonResponse
     {
-        if ($contenu->statut !== 'publie') {
+        $enregistrement = Contenu::where('slug', $contenu)->firstOrFail();
+
+        if ($enregistrement->statut !== 'publie') {
             abort(404);
         }
 
-        $contenu->increment('vues');
-        $contenu->load('categorie');
+        $enregistrement->increment('vues');
+        $enregistrement->load('categorie');
 
         $similaires = Contenu::where('statut', 'publie')
-            ->where('rubrique', $contenu->rubrique)
-            ->where('id', '!=', $contenu->id)
+            ->where('rubrique', $enregistrement->rubrique)
+            ->where('id', '!=', $enregistrement->id)
             ->orderByDesc('date_publication')
             ->limit(3)
             ->get()
             ->map(fn ($item) => ApiData::contenu($item));
 
         return response()->json([
-            'data' => ApiData::contenu($contenu),
+            'data' => ApiData::contenu($enregistrement),
             'similaires' => $similaires,
         ]);
     }

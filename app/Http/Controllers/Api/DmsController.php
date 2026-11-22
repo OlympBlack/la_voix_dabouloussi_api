@@ -28,13 +28,15 @@ class DmsController extends Controller
         return response()->json($articles);
     }
 
-    public function show(Contenu $contenu): JsonResponse
+    public function show(string $contenu): JsonResponse
     {
-        if ($contenu->statut !== 'publie' || $contenu->rubrique !== 'dms') {
+        $enregistrement = Contenu::where('slug', $contenu)->firstOrFail();
+
+        if ($enregistrement->statut !== 'publie' || $enregistrement->rubrique !== 'dms') {
             abort(404);
         }
 
-        return response()->json(['data' => ApiData::contenu($contenu)]);
+        return response()->json(['data' => ApiData::contenu($enregistrement)]);
     }
 
     public function like(Request $request, Contenu $contenu): JsonResponse
