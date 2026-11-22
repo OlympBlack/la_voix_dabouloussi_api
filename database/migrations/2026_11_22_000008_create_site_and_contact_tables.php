@@ -29,18 +29,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('dms_likes', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('contenu_id')->constrained('contenus')->cascadeOnDelete();
-            $table->string('visiteur', 64);
-            $table->timestamps();
-            $table->unique(['contenu_id', 'visiteur']);
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('dms_likes');
         Schema::dropIfExists('contact_messages');
         Schema::dropIfExists('site_settings');
     }

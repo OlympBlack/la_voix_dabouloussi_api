@@ -25,7 +25,7 @@ class DashboardController extends Controller
         return response()->json([
             'data' => [
                 'journaux' => $parRubrique->get('journal', 0),
-                'articles' => $parRubrique->get('jda', 0) + $parRubrique->get('actualite', 0) + $parRubrique->get('dms', 0),
+                'articles' => $parRubrique->get('jda', 0) + $parRubrique->get('actualite', 0),
                 'parlement' => $parRubrique->get('parlement', 0) + $parRubrique->get('commission', 0),
                 'contes' => $parRubrique->get('conte', 0),
                 'poemes' => $parRubrique->get('poeme', 0),

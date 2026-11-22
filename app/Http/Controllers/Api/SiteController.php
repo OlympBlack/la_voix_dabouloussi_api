@@ -32,7 +32,8 @@ class SiteController extends Controller
         $parlement = (clone $publies)->where('rubrique', 'parlement')->limit(4)->get();
         $contes = (clone $publies)->where('rubrique', 'conte')->limit(3)->get();
         $poemes = (clone $publies)->where('rubrique', 'poeme')->limit(3)->get();
-        $dms = (clone $publies)->where('rubrique', 'dms')->limit(4)->get();
+        $plans = (clone $publies)->where('rubrique', 'plan')->orderBy('id')->get();
+        $galerie = (clone $publies)->where('rubrique', 'image')->orderBy('id')->get();
 
         $collection = fn ($items) => $items->map(fn ($item) => ApiData::contenu($item))->values()->all();
 
@@ -45,9 +46,10 @@ class SiteController extends Controller
                 'parlement' => $collection($parlement),
                 'contes' => $collection($contes),
                 'poemes' => $collection($poemes),
-                'dms' => $collection($dms),
                 'objectif' => $collection((clone $publies)->where('rubrique', 'objectif')->limit(1)->get()),
                 'identification' => $collection((clone $publies)->where('rubrique', 'identification')->limit(1)->get()),
+                'plans' => $collection($plans),
+                'galerie' => $collection($galerie),
             ],
         ]);
     }

@@ -51,16 +51,4 @@ class Contenu extends Model
     {
         return $this->document ? asset('storage/'.$this->document) : null;
     }
-
-    protected static function booted(): void
-    {
-        static::deleting(function (Contenu $contenu): void {
-            $contenu->dmsLikes()->delete();
-        });
-    }
-
-    public function dmsLikes()
-    {
-        return $this->hasMany(DmsLike::class);
-    }
 }

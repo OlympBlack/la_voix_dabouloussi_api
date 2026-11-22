@@ -12,7 +12,6 @@ use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AlbumController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContenuController;
-use App\Http\Controllers\Api\DmsController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\SiteController;
 use Illuminate\Support\Facades\Route;
@@ -50,10 +49,6 @@ Route::get('contenus/{contenu}', [ContenuController::class, 'show']);
 
 Route::get('albums', [AlbumController::class, 'index']);
 Route::get('albums/{album}', [AlbumController::class, 'show']);
-
-Route::get('dms/articles', [DmsController::class, 'index']);
-Route::get('dms/articles/{contenu}', [DmsController::class, 'show']);
-Route::post('dms/articles/{contenu}/like', [DmsController::class, 'like']);
 
 Route::get('market/rayons', [MarketController::class, 'rayons']);
 Route::get('market/produits', [MarketController::class, 'produits']);

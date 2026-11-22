@@ -25,7 +25,6 @@ class ApiData
             'meta' => $contenu->meta ?? [],
             'a_la_une' => (bool) $contenu->a_la_une,
             'vues' => $contenu->vues,
-            'likes' => $contenu->rubrique === 'dms' ? $contenu->dmsLikes()->count() : null,
             'categorie' => $contenu->categorie ? [
                 'id' => $contenu->categorie->id,
                 'nom' => $contenu->categorie->nom,
