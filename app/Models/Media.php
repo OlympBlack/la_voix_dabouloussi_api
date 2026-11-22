@@ -14,6 +14,8 @@ class Media extends Model
 
     protected $casts = ['taille' => 'integer'];
 
+    protected $appends = ['url'];
+
     public function getUrlAttribute(): string
     {
         return asset('storage/'.$this->chemin);

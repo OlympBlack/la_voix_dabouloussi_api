@@ -12,6 +12,8 @@ class Album extends Model
 
     protected $casts = ['date_album' => 'date:Y-m-d'];
 
+    protected $appends = ['url_couverture'];
+
     public function photos()
     {
         return $this->hasMany(AlbumPhoto::class)->orderBy('ordre');

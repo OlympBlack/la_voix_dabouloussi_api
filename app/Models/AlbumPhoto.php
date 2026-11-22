@@ -8,6 +8,8 @@ class AlbumPhoto extends Model
 {
     protected $fillable = ['album_id', 'image', 'legende', 'ordre'];
 
+    protected $appends = ['url'];
+
     public function album()
     {
         return $this->belongsTo(Album::class);
