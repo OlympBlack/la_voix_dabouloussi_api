@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'name_site' => 'La Voix d\'Abouloussi',
+
+    'cors_origins' => array_values(array_filter(explode(',', env('CORS_ORIGINS', '*')))),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
