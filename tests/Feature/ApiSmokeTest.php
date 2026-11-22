@@ -71,6 +71,12 @@ class ApiSmokeTest extends TestCase
             'groupe' => 'jda',
         ]);
         SiteSetting::create([
+            'cle' => 'pjk_image',
+            'libelle' => 'Image PJK',
+            'valeur' => 'media/archives/uploads/56-357074361437.jpeg',
+            'groupe' => 'parlement',
+        ]);
+        SiteSetting::create([
             'cle' => 'pjk_commission_1_titre',
             'libelle' => 'Titre commission PJK 1',
             'valeur' => '1- La Commission Environnement',
@@ -116,6 +122,7 @@ class ApiSmokeTest extends TestCase
             ->assertJsonPath('data.accueil.hero_titre', "LA VOIX D'ABOULOUSSI")
             ->assertJsonPath('data.journal.journal_telechargement_titre', 'Télécharger les journaux')
             ->assertJsonPath('data.jda.jda_objectifs_titre', 'Objetifs')
+            ->assertJsonPath('data.parlement.pjk_image', 'media/archives/uploads/56-357074361437.jpeg')
             ->assertJsonPath('data.parlement.pjk_commission_1_titre', '1- La Commission Environnement')
             ->assertJsonPath('data.histoire.dgp_intro_titre', 'Contes, Legendes & Proverbes');
 

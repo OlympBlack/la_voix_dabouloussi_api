@@ -207,9 +207,9 @@ TEXTE;
 
         $parametres = [
             ['adresse', 'Adresse', '08 BP 0266 Cotonou, Bénin', 'contact'],
-            ['email', 'E-mail principal', 'lavoixdabouloussi@gmail.com', 'contact'],
+            ['email', 'E-mail principal', 'karintobe@hotmail.com', 'contact'],
             ['email2', 'E-mail secondaire', 'contact@lavoixdabouloussi.org', 'contact'],
-            ['telephone', 'Téléphone principal', '+229 01 97 52 74 24', 'contact'],
+            ['telephone', 'Téléphone principal', '(+229) 01 66 39 10 89', 'contact'],
             ['telephone2', 'Téléphone secondaire', '+229 96 11 47 52', 'contact'],
             ['administrateur1', 'Administrateur historique 1', 'Jules-christ GBASSI', 'contact'],
             ['administrateur2', 'Administrateur historique 2', 'Oswald GNASSOUNOU', 'contact'],
@@ -220,9 +220,11 @@ TEXTE;
             ['jda_email', 'E-mail JDA', 'ongjda@mail.com', 'jda'],
             ['jda_telephone', 'Téléphones JDA', '66391089 / 97959660', 'jda'],
             ['jda_siege', 'Siège JDA', 'Abomey-Calavi', 'jda'],
+            ['jda_image', 'Image JDA', '', 'jda'],
             ['jda_intro', 'Introduction JDA', $jdaIntro, 'jda'],
             ['jda_objectifs_titre', 'Titre Objectifs JDA', 'Objetifs', 'jda'],
             ['jda_objectifs', 'Objectifs JDA', $jdaObjectifs, 'jda'],
+            ['pjk_image', 'Image Parlement des Jeunes de Koko', '', 'parlement'],
             ['pjk_intro', 'Introduction PJK', $pjkIntro, 'parlement'],
             ['pjk_mission', 'Mission PJK', $pjkMission, 'parlement'],
             ['pjk_organisation', 'Organisation PJK', $pjkOrganisation, 'parlement'],
@@ -808,7 +810,7 @@ TEXTE;
                 'slug' => 'galerie-koko-'.($index + 1),
                 'rubrique' => 'image',
                 'titre' => 'Koko',
-                'resume' => 'Images de Koko, publiées sur la page d\'accueil historique.',
+                'resume' => null,
                 'image' => $chemin,
                 'auteur' => "La Voix d'Abouloussi",
             ]);
@@ -933,6 +935,7 @@ TEXTE;
         $definir('journal_image_2', 'Image Mon journal 2', $imagesJournal[1] ?? null, 'journal');
         $definir('dgp_intro_image', 'Image Dis-moi Grand-Père', array_values($imageDgp)[0] ?? null, 'histoire');
         $definir('jda_image', 'Image JDA', $this->trouverImage($jdaPhotos, 'whatsapp-image-2024-03-05-at-110803-am-1.jpeg'), 'jda');
+        $definir('pjk_image', 'Image Parlement des Jeunes de Koko', $this->trouverImage($uploads, '56-357074361437.jpeg'), 'parlement');
 
         $equipeImages = array_values($equipe);
         $definir('equipe_1', 'Photo administratrice historique', collect($equipe)->first(fn ($chemin) => str_contains(basename($chemin), 'adm1')) ?? $equipeImages[0] ?? null, 'contact');
