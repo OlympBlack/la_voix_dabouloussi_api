@@ -28,7 +28,11 @@ class SiteController extends Controller
         $featured = (clone $publies)->where('a_la_une', true)->limit(8)->get();
         $journaux = (clone $publies)->where('rubrique', 'journal')->limit(6)->get();
         $actualites = (clone $publies)->where('rubrique', 'actualite')->limit(6)->get();
-        $jda = (clone $publies)->where('rubrique', 'jda')->limit(4)->get();
+        $jda = Contenu::where('statut', 'publie')->where('rubrique', 'jda')
+            ->orderBy('meta->ordre')
+            ->orderByDesc('date_publication')
+            ->limit(4)
+            ->get();
         $parlement = (clone $publies)->where('rubrique', 'parlement')->limit(4)->get();
         $contes = (clone $publies)->where('rubrique', 'conte')->limit(3)->get();
         $poemes = (clone $publies)->where('rubrique', 'poeme')->limit(3)->get();

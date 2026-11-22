@@ -460,6 +460,31 @@ TEXTE;
         }
     }
 
+    private function trouverImage(array $images, string $nomFichier): ?string
+    {
+        return collect($images)->first(fn ($chemin) => str_ends_with(strtolower($chemin), strtolower($nomFichier)));
+    }
+
+    private function ordonnerImages(array $images, array $nomsFichiers): array
+    {
+        $ordonnees = [];
+
+        foreach ($nomsFichiers as $nomFichier) {
+            $chemin = $this->trouverImage($images, $nomFichier);
+            if ($chemin && ! in_array($chemin, $ordonnees, true)) {
+                $ordonnees[] = $chemin;
+            }
+        }
+
+        foreach ($images as $chemin) {
+            if (! in_array($chemin, $ordonnees, true)) {
+                $ordonnees[] = $chemin;
+            }
+        }
+
+        return $ordonnees;
+    }
+
     private function seedJda(array $rapports, array $rapport1, array $rapport2, array $rapport3): void
     {
         $pdf = fn (string $nom): ?string => collect($rapports)->first(fn ($chemin) => str_contains($chemin, Str::slug($nom))) ??
@@ -478,28 +503,21 @@ TEXTE;
                 'titre' => 'Rencontre à la bibliothèque du centre AKPON MANKORO',
                 'resume' => "Ce 28 décembre 2024, s'est tenue dans la bibliothèque du centre AKPON MANKORO la première plénière du Parlement des Jeunes de KOKO. Elle a connu la présence effective des représentants de L'ONG JDA aux noms de Mr Jude TCHALLA, Mr Ferdinand TATA, Mr Bruno ACAKPO, Mr Dassi BAH et des élèves membres du PJK...",
                 'pdf' => 'Rapport d activite du 28-12-24-JDA',
-                'image' => array_values($rapport1)[0] ?? null,
+                'image' => $this->trouverImage($rapport1, 'img-20250109-wa0017.jpg'),
                 'date' => '2024-12-28',
             ],
             [
                 'titre' => 'Rapport de la journée de formation en savonnerie à Parakou',
                 'resume' => "L'objectif principal de cette formation était  de promouvoir L'entrepreneuriat des jeunes afin de remédier le chômage au sein des étudiants de Bantè résidant à Parakou...",
                 'pdf' => 'Formation en savonnerie',
-                'image' => array_values($rapport2)[0] ?? null,
+                'image' => $this->trouverImage($rapport2, 'img-20250110-wa0018.jpg'),
                 'date' => '2024-11-30',
             ],
             [
                 'titre' => 'Rencontre à Ayékè le 15 novembre 2024',
                 'resume' => "ce document tient lieu de compte rendu de la rencontre qui s'est tenue à Ayékè le 15 novembre 2024 à 16h entre l'ONG JDA et les membres du bureau APE de la dite école. Étaient présents ...",
                 'pdf' => 'Rencontre a Ayeke',
-                'image' => array_values($rapport3)[0] ?? null,
-                'date' => '2024-11-15',
-            ],
-            [
-                'titre' => 'Rencontre tenue au laboratoire du CEG KOKO',
-                'resume' => "Ce vendredi 15 novembre 2024 s'est tenue au laboratoire du CEG KOKO, la rencontre de l'ONG JDA avec le bureau APE...",
-                'pdf' => 'laboratoire du CEG koko',
-                'image' => array_values($rapport3)[2] ?? null,
+                'image' => $this->trouverImage($rapport3, 'img-20250110-wa0032.jpg'),
                 'date' => '2024-11-15',
             ],
             [
@@ -507,12 +525,19 @@ TEXTE;
                 'resume' => 'Commme prévu dans notre plan de travail annuel, les séances de lecture vont de bon train.',
                 'corps' => $seanceLecture,
                 'pdf' => null,
-                'image' => array_values($rapport3)[1] ?? null,
-                'date' => '2024-11-10',
+                'image' => $this->trouverImage($rapport3, 'img-20250110-wa0029.jpg'),
+                'date' => '2024-11-15',
+            ],
+            [
+                'titre' => 'Rencontre tenue au laboratoire du CEG KOKO',
+                'resume' => "Ce vendredi 15 novembre 2024 s'est tenue au laboratoire du CEG KOKO, la rencontre de l'ONG JDA avec le bureau APE...",
+                'pdf' => 'laboratoire du CEG koko',
+                'image' => $this->trouverImage($rapport3, 'img-20250110-wa0030.jpg'),
+                'date' => '2024-11-15',
             ],
         ];
 
-        foreach ($activites as $activite) {
+        foreach ($activites as $index => $activite) {
             $cheminPdf = $activite['pdf'] ? $pdf($activite['pdf']) : null;
             $this->creerContenu([
                 'rubrique' => 'jda',
@@ -524,6 +549,7 @@ TEXTE;
                 'image' => $activite['image'],
                 'document' => $cheminPdf,
                 'document_nom' => $cheminPdf ? basename($cheminPdf) : null,
+                'meta' => ['ordre' => $index + 1],
                 'categorie_id' => Categorie::where('slug', 'rapports-dactivites')->value('id'),
                 'a_la_une' => true,
             ]);
@@ -791,6 +817,46 @@ TEXTE;
 
     private function seedAlbums(array $jda, array $rapport1, array $rapport2, array $rapport3, array $parlement, array $parlementRacine): void
     {
+        $jda = $this->ordonnerImages($jda, [
+            'whatsapp-image-2024-03-05-at-110807-am.jpeg',
+            'whatsapp-image-2024-03-05-at-110809-am.jpeg',
+            'whatsapp-image-2024-03-05-at-111019-am-2.jpeg',
+            'whatsapp-image-2024-03-05-at-111019-am.jpeg',
+            'whatsapp-image-2024-03-05-at-111020-am-1.jpeg',
+            'whatsapp-image-2024-03-05-at-111021-am-1.jpeg',
+            'whatsapp-image-2024-03-05-at-111022-am.jpeg',
+            'whatsapp-image-2024-03-05-at-111022-am-3.jpeg',
+        ]);
+        $rapport1 = $this->ordonnerImages($rapport1, [
+            'img-20250109-wa0035.jpg',
+            'img-20250109-wa0037.jpg',
+            'img-20250109-wa0039.jpg',
+            'img-20250109-wa0049.jpg',
+            'img-20250109-wa0051.jpg',
+            'img-20250109-wa0075.jpg',
+            'img-20250109-wa0059.jpg',
+            'img-20250109-wa0065.jpg',
+            'img-20250109-wa00251.jpg',
+            'img-20250109-wa0029.jpg',
+            'img-20250109-wa0021.jpg',
+            'img-20250109-wa0017.jpg',
+        ]);
+        $rapport2 = $this->ordonnerImages($rapport2, [
+            'img-20250110-wa0024.jpg',
+            'img-20250110-wa0022.jpg',
+            'img-20250110-wa0026.jpg',
+            'img-20250110-wa0028.jpg',
+            'img-20250110-wa0020.jpg',
+            'img-20250110-wa0018.jpg',
+            'img-20250110-wa0016.jpg',
+        ]);
+        $rapport3 = $this->ordonnerImages($rapport3, [
+            'img-20250110-wa0032.jpg',
+            'img-20250110-wa0035.jpg',
+            'img-20250110-wa0031.jpg',
+            'img-20250110-wa0033.jpg',
+        ]);
+
         $albums = [
             ['Album photos du JDA', 'jda', 'Photos des activités des Jeunes Dynamiques et Actions.', '2024-03-05', $jda],
             ['Rapport d’activité 1 — Plénière du PJK', 'jda', 'Photos de la première plénière du Parlement des Jeunes de Koko.', '2025-01-09', $rapport1],
@@ -801,7 +867,7 @@ TEXTE;
 
         foreach ($albums as [$titre, $rubrique, $description, $date, $photos]) {
             $slug = Str::slug($titre);
-            $album = Album::firstOrCreate(['slug' => $slug], [
+            $album = Album::updateOrCreate(['slug' => $slug], [
                 'titre' => $titre,
                 'description' => $description,
                 'rubrique' => $rubrique,
@@ -815,15 +881,13 @@ TEXTE;
             }
 
             foreach (array_values($photos) as $ordre => $chemin) {
-                $existe = AlbumPhoto::where('album_id', $album->id)->where('image', $chemin)->exists();
-                if (! $existe) {
-                    AlbumPhoto::create([
-                        'album_id' => $album->id,
-                        'image' => $chemin,
-                        'legende' => pathinfo($chemin, PATHINFO_FILENAME),
-                        'ordre' => $ordre,
-                    ]);
-                }
+                AlbumPhoto::updateOrCreate([
+                    'album_id' => $album->id,
+                    'image' => $chemin,
+                ], [
+                    'legende' => pathinfo($chemin, PATHINFO_FILENAME),
+                    'ordre' => $ordre,
+                ]);
             }
         }
     }
@@ -868,7 +932,7 @@ TEXTE;
         $definir('journal_image_1', 'Image Mon journal 1', $imagesJournal[0] ?? null, 'journal');
         $definir('journal_image_2', 'Image Mon journal 2', $imagesJournal[1] ?? null, 'journal');
         $definir('dgp_intro_image', 'Image Dis-moi Grand-Père', array_values($imageDgp)[0] ?? null, 'histoire');
-        $definir('jda_image', 'Image JDA', array_values($jdaPhotos)[0] ?? null, 'jda');
+        $definir('jda_image', 'Image JDA', $this->trouverImage($jdaPhotos, 'whatsapp-image-2024-03-05-at-110803-am-1.jpeg'), 'jda');
 
         $equipeImages = array_values($equipe);
         $definir('equipe_1', 'Photo administratrice historique', collect($equipe)->first(fn ($chemin) => str_contains(basename($chemin), 'adm1')) ?? $equipeImages[0] ?? null, 'contact');

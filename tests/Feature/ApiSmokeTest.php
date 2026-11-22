@@ -144,4 +144,42 @@ class ApiSmokeTest extends TestCase
             ->assertJsonPath('data.0.nom', 'local')
             ->assertJsonPath('data.0.taux', 0.18);
     }
+
+    public function test_l_ordre_jda_reste_celui_de_l_ancien_site(): void
+    {
+        $activites = [
+            ['slug' => 'jda-bibliotheque', 'titre' => 'Rencontre à la bibliothèque du centre AKPON MANKORO', 'ordre' => 1],
+            ['slug' => 'jda-savonnerie', 'titre' => 'Rapport de la journée de formation en savonnerie à Parakou', 'ordre' => 2],
+            ['slug' => 'jda-laboratoire', 'titre' => 'Rencontre tenue au laboratoire du CEG KOKO', 'ordre' => 5],
+            ['slug' => 'jda-ayeki', 'titre' => 'Rencontre à Ayékè le 15 novembre 2024', 'ordre' => 3],
+            ['slug' => 'jda-seance', 'titre' => 'Séance de lecture', 'ordre' => 4],
+        ];
+
+        foreach ($activites as $activite) {
+            Contenu::create([
+                'rubrique' => 'jda',
+                'titre' => $activite['titre'],
+                'slug' => $activite['slug'],
+                'statut' => 'publie',
+                'date_publication' => '2024-11-15',
+                'meta' => ['ordre' => $activite['ordre']],
+            ]);
+        }
+
+        $ordreAttendu = [
+            'Rencontre à la bibliothèque du centre AKPON MANKORO',
+            'Rapport de la journée de formation en savonnerie à Parakou',
+            'Rencontre à Ayékè le 15 novembre 2024',
+            'Séance de lecture',
+            'Rencontre tenue au laboratoire du CEG KOKO',
+        ];
+
+        $this->getJson('/api/jda?per_page=50')
+            ->assertOk()
+            ->assertJsonPath('data.*.titre', $ordreAttendu);
+
+        $this->getJson('/api/home')
+            ->assertOk()
+            ->assertJsonPath('data.jda.*.titre', array_slice($ordreAttendu, 0, 4));
+    }
 }

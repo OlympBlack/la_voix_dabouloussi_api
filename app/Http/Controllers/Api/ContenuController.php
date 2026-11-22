@@ -21,6 +21,10 @@ class ContenuController extends Controller
 
         $query = Contenu::where('statut', 'publie')->where('rubrique', $rubrique);
 
+        if ($rubrique === 'jda') {
+            $query->orderBy('meta->ordre');
+        }
+
         if (! empty($donnees['categorie'])) {
             $query->whereHas('categorie', fn ($q) => $q->where('slug', $donnees['categorie']));
         }
