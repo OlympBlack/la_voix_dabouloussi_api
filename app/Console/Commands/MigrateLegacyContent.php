@@ -1,0 +1,685 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Album;
+use App\Models\AlbumPhoto;
+use App\Models\Categorie;
+use App\Models\Contenu;
+use App\Models\Media;
+use App\Models\Permission;
+use App\Models\Rayon;
+use App\Models\Role;
+use App\Models\SiteSetting;
+use App\Models\User;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+
+class MigrateLegacyContent extends Command
+{
+    protected $signature = 'voix:migrate-legacy {--source= : Chemin du projet historique} {--fresh-media : Vider le dossier media avant copie}';
+
+    protected $description = 'Copie les médias et importe le contenu historique de La Voix d’Abouloussi';
+
+    private string $source;
+
+    private string $destination;
+
+    private ?User $admin = null;
+
+    private int $fichiersCopies = 0;
+
+    private int $contenusCrees = 0;
+
+    private int $albumsCrees = 0;
+
+    public function handle(): int
+    {
+        $this->source = rtrim((string) ($this->option('source') ?: env('LEGACY_PROJECT_PATH', '/home/firstone/JC/voixdabouloussi_ancien')), '/');
+        $this->destination = storage_path('app/public/media');
+
+        if (! File::isDirectory($this->source)) {
+            $this->error("Projet historique introuvable : {$this->source}");
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('fresh-media') && File::isDirectory($this->destination)) {
+            File::deleteDirectory($this->destination);
+        }
+        File::ensureDirectoryExists($this->destination);
+
+        $this->seedRolesEtAdmin();
+        $this->seedParametres();
+        $this->seedCategories();
+
+        $journaux = $this->copierDossier('les journaux', 'journaux/documents', 'journal', ['pdf']);
+        $imagesJournal = $this->copierDossier('assets/img/Journal', 'journaux/images', 'journal', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $rapports = $this->copierDossier('assets/rapport', 'jda/documents', 'jda', ['pdf']);
+        $jdaPhotos = $this->copierDossier('assets/img/JDA', 'jda/album', 'jda', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $rapport1 = $this->copierDossier('assets/img/JDA/rapport1', 'jda/albums/rapport-1', 'jda', ['jpg', 'jpeg', 'png']);
+        $rapport2 = $this->copierDossier('assets/img/JDA/rapport2', 'jda/albums/rapport-2', 'jda', ['jpg', 'jpeg', 'png']);
+        $rapport3 = $this->copierDossier('assets/img/JDA/rapport3', 'jda/albums/rapport-3', 'jda', ['jpg', 'jpeg', 'png']);
+        $parlement = $this->copierDossier('assets/img/parlement', 'parlement/images', 'parlement', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $parlementRacine = $this->copierDossier('assets/img', 'parlement/images', 'parlement', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $dms = $this->copierDossier('dms.lavoixdabouloussi.org/uploads', 'dms/images', 'dms', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $accueil = $this->copierDossier('assets/img', 'accueil/images', 'page', ['jpg', 'jpeg', 'png', 'webp', 'jfif']);
+        $equipe = $this->copierDossier('assets/img/team', 'contact/images', 'page', ['jpg', 'jpeg', 'png']);
+        $uploads = $this->copierDossier('images/upload', 'archives/uploads', 'page', ['jpg', 'jpeg', 'png', 'webp', 'jfif', 'pdf', 'zip']);
+        $icones = $this->copierDossier('dms.lavoixdabouloussi.org/assets/icons', 'dms/icons', 'dms', ['png']);
+
+        $this->seedJournaux($journaux, $imagesJournal);
+        $this->seedJda($rapports, $rapport1, $rapport2, $rapport3);
+        $this->seedParlement($parlement, $parlementRacine);
+        $this->seedPoemes();
+        $this->seedPagesInstitutionnelles();
+        $this->seedArchivesDms($dms);
+        $this->seedAlbums($jdaPhotos, $rapport1, $rapport2, $rapport3, $parlement, $parlementRacine);
+        $this->seedRayons();
+        $this->lierImagesParametres($accueil, $equipe, $icones, $uploads);
+
+        $this->creerLienStorage();
+
+        $this->info("Migration terminée : {$this->fichiersCopies} fichiers copiés, {$this->contenusCrees} contenus créés, {$this->albumsCrees} albums créés.");
+
+        return self::SUCCESS;
+    }
+
+    private function seedRolesEtAdmin(): void
+    {
+        $roles = [
+            'admin' => ['Administrateur', ['manage_content', 'manage_users']],
+            'redacteur' => ['Rédacteur', ['manage_content']],
+            'lecteur' => ['Lecteur', []],
+        ];
+
+        foreach ($roles as $name => [$label, $permissions]) {
+            $role = Role::firstOrCreate(['name' => $name], ['label' => $label]);
+            $ids = [];
+            foreach ($permissions as $permission) {
+                $modele = Permission::firstOrCreate(['name' => $permission], ['label' => $permission === 'manage_content' ? 'Gérer les contenus' : 'Gérer les utilisateurs']);
+                $ids[] = $modele->id;
+            }
+            $role->permissions()->sync($ids);
+        }
+
+        $email = env('ADMIN_EMAIL', 'admin@lavoixdabouloussi.org');
+        $motDePasse = env('ADMIN_PASSWORD');
+        $genere = false;
+        if (! $motDePasse) {
+            $motDePasse = Str::password(18);
+            $genere = true;
+        }
+
+        $this->admin = User::firstOrCreate(
+            ['email' => $email],
+            ['name' => 'Administrateur principal', 'password' => Hash::make($motDePasse), 'role' => 'admin', 'actif' => true]
+        );
+
+        if ($genere && $this->admin->wasRecentlyCreated) {
+            $this->warn("Mot de passe administrateur généré : {$motDePasse}");
+            $this->warn('Définissez ADMIN_PASSWORD dans .env puis relancez si vous souhaitez le changer.');
+        }
+    }
+
+    private function seedParametres(): void
+    {
+        $parametres = [
+            ['adresse', 'Adresse', '08 BP 0266 Cotonou, Bénin', 'contact'],
+            ['email', 'E-mail principal', 'lavoixdabouloussi@gmail.com', 'contact'],
+            ['email2', 'E-mail secondaire', 'contact@lavoixdabouloussi.org', 'contact'],
+            ['telephone', 'Téléphone principal', '+229 01 97 52 74 24', 'contact'],
+            ['telephone2', 'Téléphone secondaire', '+229 96 11 47 52', 'contact'],
+            ['administrateur1', 'Administrateur historique 1', 'Jules-christ GBASSI', 'contact'],
+            ['administrateur2', 'Administrateur historique 2', 'Oswald GNASSOUNOU', 'contact'],
+            ['administrateur3', 'Administrateur historique 3', 'Ulrich KOUDOGBO', 'contact'],
+            ['administrateur4', 'Administrateur historique 4', 'Delco ADOGBO', 'contact'],
+            ['jda_email', 'E-mail JDA', 'ongjda@mail.com', 'jda'],
+            ['jda_telephone', 'Téléphones JDA', '66391089 / 97959660', 'jda'],
+            ['jda_siege', 'Siège JDA', 'Abomey-Calavi', 'jda'],
+            ['dms_whatsapp', 'WhatsApp DMS', 'https://wa.me/+22990010184', 'dms'],
+            ['nombre_journaux', 'Nombre de numéros de journal', '9', 'journal'],
+            ['nom_site', 'Nom du site', "La Voix d'Abouloussi", 'general'],
+            ['description_site', 'Description du site', 'Journaux, actualités JDA, Parlement des Jeunes de Koko, contes, poèmes et mémoire associative.', 'general'],
+        ];
+
+        foreach ($parametres as [$cle, $libelle, $valeur, $groupe]) {
+            SiteSetting::updateOrCreate(['cle' => $cle], ['libelle' => $libelle, 'valeur' => $valeur, 'groupe' => $groupe]);
+        }
+    }
+
+    private function seedCategories(): void
+    {
+        $categories = [
+            ['journal', 'Journaux', 'Tous les numéros du journal'],
+            ['jda', 'Rapports d’activités', 'Comptes rendus et rapports du JDA'],
+            ['jda', 'Actualités JDA', 'Actualités du mouvement'],
+            ['parlement', 'Commissions', 'Les cinq commissions du Parlement des Jeunes'],
+            ['parlement', 'Sessions', 'Sessions plénières et rencontres'],
+            ['conte', 'Contes et légendes', 'Récits et légendes d’Abouloussi'],
+            ['poeme', 'Poésie', 'Poèmes du patrimoine'],
+            ['dms', 'Archives DMS', 'Archives de Delco Multi Services'],
+        ];
+
+        foreach ($categories as [$rubrique, $nom, $description]) {
+            $slug = Str::slug($nom);
+            Categorie::firstOrCreate(['slug' => $slug], [
+                'rubrique' => $rubrique,
+                'nom' => $nom,
+                'description' => $description,
+                'ordre' => 0,
+            ]);
+        }
+    }
+
+    private function copierDossier(string $sourceRelatif, string $destinationRelatif, string $rubrique, array $extensions): array
+    {
+        $source = $this->source.'/'.$sourceRelatif;
+        $destination = $this->destination.'/'.$destinationRelatif;
+        $resultat = [];
+
+        if (! File::isDirectory($source)) {
+            return $resultat;
+        }
+        File::ensureDirectoryExists($destination);
+
+        foreach (File::files($source) as $fichier) {
+            $extension = strtolower($fichier->getExtension());
+            if (! in_array($extension, $extensions, true)) {
+                continue;
+            }
+            $resultat[$fichier->getRealPath()] = $this->copierFichier($fichier->getRealPath(), $destination, $destinationRelatif, $rubrique);
+        }
+
+        return $resultat;
+    }
+
+    private function copierFichier(string $source, string $destinationDir, string $destinationRelatif, string $rubrique): string
+    {
+        $extension = strtolower(pathinfo($source, PATHINFO_EXTENSION));
+        $base = Str::slug(pathinfo($source, PATHINFO_FILENAME)) ?: 'fichier';
+        $nom = $base.'.'.$extension;
+        $suffixe = 2;
+
+        while (File::exists($destinationDir.'/'.$nom)) {
+            $cible = $destinationDir.'/'.$nom;
+            $identique = filesize($source) === filesize($cible) && hash_file('sha256', $source) === hash_file('sha256', $cible);
+            if ($identique) {
+                break;
+            }
+            $nom = $base.'-'.$suffixe.'.'.$extension;
+            $suffixe++;
+        }
+
+        if (! File::exists($destinationDir.'/'.$nom)) {
+            File::copy($source, $destinationDir.'/'.$nom);
+            $this->fichiersCopies++;
+        }
+
+        $chemin = 'media/'.$destinationRelatif.'/'.$nom;
+        $type = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif'], true) ? 'image' : 'document';
+
+        Media::firstOrCreate(['chemin' => $chemin], [
+            'user_id' => $this->admin?->id,
+            'nom' => pathinfo($source, PATHINFO_BASENAME),
+            'type' => $type,
+            'mime' => mime_content_type($source) ?: null,
+            'taille' => filesize($source) ?: 0,
+            'alt' => pathinfo($source, PATHINFO_FILENAME),
+            'rubrique' => $rubrique,
+        ]);
+
+        return $chemin;
+    }
+
+    private function creerContenu(array $donnees): Contenu
+    {
+        $slug = Str::slug($donnees['titre']) ?: 'contenu';
+
+        $contenu = Contenu::updateOrCreate(['slug' => $slug], $donnees + [
+            'slug' => $slug,
+            'statut' => 'publie',
+            'user_id' => $this->admin?->id,
+            'meta' => [],
+            'a_la_une' => false,
+            'vues' => 0,
+        ]);
+
+        if ($contenu->wasRecentlyCreated) {
+            $this->contenusCrees++;
+        }
+
+        return $contenu;
+    }
+
+    private function seedJournaux(array $journaux, array $images): void
+    {
+        $image = array_values($images)[0] ?? null;
+        foreach ($journaux as $source => $chemin) {
+            if (! str_ends_with($chemin, '.pdf')) {
+                continue;
+            }
+            $annee = preg_match('/(19|20)\d{2}/', basename($source), $matches) ? $matches[0] : 'historique';
+            $this->creerContenu([
+                'rubrique' => 'journal',
+                'titre' => "Journal d'Abouloussi — {$annee}",
+                'resume' => "Numéro du journal d'Abouloussi publié en {$annee}. Le journal est au numéro 9 grâce à la participation des gens de tout horizon du Bénin.",
+                'corps' => "Télécharger les journaux\n\nLe journal est au numéro 9 grâce à la participation des gens de tout horizon du Bénin. Alors vous pouvez les télécharger en cliquant sur le bouton ouvrir de chaque numéro.",
+                'auteur' => "La Voix d'Abouloussi",
+                'date_publication' => $annee === 'historique' ? null : "{$annee}-12-31",
+                'image' => $image,
+                'document' => $chemin,
+                'document_nom' => basename($source),
+                'categorie_id' => Categorie::where('slug', 'journaux')->value('id'),
+            ]);
+        }
+    }
+
+    private function seedJda(array $rapports, array $rapport1, array $rapport2, array $rapport3): void
+    {
+        $pdf = fn (string $nom): ?string => collect($rapports)->first(fn ($chemin) => str_contains($chemin, Str::slug($nom))) ??
+            collect($rapports)->first(fn ($chemin) => str_contains(strtolower(basename($chemin)), Str::slug($nom, '')));
+
+        $activites = [
+            [
+                'titre' => 'Rencontre à la bibliothèque du centre AKPON MANKORO',
+                'resume' => "Ce 28 décembre 2024, s'est tenue dans la bibliothèque du centre AKPON MANKORO la première plénière du Parlement des Jeunes de KOKO. Elle a connu la présence effective des représentants de L'ONG JDA aux noms de Mr Jude TCHALLA, Mr Ferdinand TATA, Mr Bruno ACAKPO, Mr Dassi BAH et des élèves membres du PJK...",
+                'pdf' => 'Rapport d activite du 28-12-24-JDA',
+                'image' => array_values($rapport1)[0] ?? null,
+                'date' => '2024-12-28',
+            ],
+            [
+                'titre' => 'Rapport de la journée de formation en savonnerie à Parakou',
+                'resume' => "L'objectif principal de cette formation était  de promouvoir L'entrepreneuriat des jeunes afin de remédier le chômage au sein des étudiants de Bantè résidant à Parakou...",
+                'pdf' => 'Formation en savonnerie',
+                'image' => array_values($rapport2)[0] ?? null,
+                'date' => '2024-11-30',
+            ],
+            [
+                'titre' => 'Rencontre à Ayékè le 15 novembre 2024',
+                'resume' => "ce document tient lieu de compte rendu de la rencontre qui s'est tenue à Ayékè le 15 novembre 2024 à 16h entre l'ONG JDA et les membres du bureau APE de la dite école. Étaient présents ...",
+                'pdf' => 'Rencontre a Ayeke',
+                'image' => array_values($rapport3)[0] ?? null,
+                'date' => '2024-11-15',
+            ],
+            [
+                'titre' => 'Rencontre tenue au laboratoire du CEG KOKO',
+                'resume' => "Ce vendredi 15 novembre 2024 s'est tenue au laboratoire du CEG KOKO, la rencontre de l'ONG JDA avec le bureau APE...",
+                'pdf' => 'laboratoire du CEG koko',
+                'image' => array_values($rapport3)[2] ?? null,
+                'date' => '2024-11-15',
+            ],
+            [
+                'titre' => 'Séance de lecture',
+                'resume' => "Bonjour chères madames. Bonjour chers collègue. Commme prévu dans notre plan de travail annuel, les séances de lecture vont de bon train. Je pense que c'est une activité importante pour relever le niveau des ces apprenants. On essaie de travailler pour corriger aussi l'accent qui sort quand ils parle le français. C'est un gros travail qui est là vu leur niveau, je pense.",
+                'pdf' => null,
+                'image' => array_values($rapport3)[1] ?? null,
+                'date' => '2024-11-10',
+            ],
+        ];
+
+        foreach ($activites as $activite) {
+            $cheminPdf = $activite['pdf'] ? $pdf($activite['pdf']) : null;
+            $this->creerContenu([
+                'rubrique' => 'jda',
+                'titre' => $activite['titre'],
+                'resume' => $activite['resume'],
+                'corps' => $activite['resume'],
+                'auteur' => 'JDA',
+                'date_publication' => $activite['date'],
+                'image' => $activite['image'],
+                'document' => $cheminPdf,
+                'document_nom' => $cheminPdf ? basename($cheminPdf) : null,
+                'categorie_id' => Categorie::where('slug', 'rapports-dactivites')->value('id'),
+                'a_la_une' => true,
+            ]);
+        }
+    }
+
+    private function seedParlement(array $parlement, array $parlementRacine): void
+    {
+        $images = array_values($parlement);
+        $image = $images[0] ?? array_values($parlementRacine)[0] ?? null;
+
+        $this->creerContenu([
+            'rubrique' => 'parlement',
+            'titre' => 'Parlement des Jeunes de Koko — Mission',
+            'resume' => 'Briser le joug de la honte de parler en publique (ce qui s’observe chez nombre d’apprenants de la localité) et amener les responsable à débattre des problèmes que rencontrent les élèves durant leur cursus en vue de trouver des voies de sortie.',
+            'corps' => 'Le Parlement des Jeunes de Koko est composé de cinq commissions à savoir : la commission Environnement, commission Education Scolaire, Commission Education Sexuelle, Commission Loisirs et Culture et la Commission Education Civique et Sociale.',
+            'auteur' => 'Parlement des Jeunes de Koko',
+            'image' => $image,
+            'date_publication' => '2017-11-01',
+            'a_la_une' => true,
+            'categorie_id' => Categorie::where('slug', 'sessions')->value('id'),
+        ]);
+
+        $commissions = [
+            ['1- La Commission Environnement', 'Cette commission se charge des questions de gestion de l’environnement. Elle organise des journées de salubrité et de reboisement dans les villages en vue de lutter contre la DAL et la désertification. Sensibilise pour l’atteinte des ODD.'],
+            ['2- La commission Education Sexuelle', 'Elle travaille en collaboration avec les agents de santé de l’arrondissement de Koko, ceux de l’hôpital de Bantè et l’hôpital de zone de Savalou. Les points capitaux de ses interventions sont la lutte contre les grossesses en milieu scolaire, l’éducation à la santé sexuelle et l’encouragement à l’utilisation des méthodes de contraception. Cette commission dispose d’une cellule de consultation en conseils et accompagnement en cas de difficulté.'],
+            ['3- La Commission Education Scolaire', 'C’est la commission la plus proche de l’administration et de l’Association des Parents d’Elève. Elle veille au bon déroulement des activités pédagogiques et exhorte surtout les élèves à donner le meilleur d’eux-mêmes. Elle initie depuis 2017 l’organisation des séances de renforcement des capacités en collaboration avec la Fondation Tobé.'],
+            ['4- La Commission Loisirs et Culture', 'Elle se charge des animations culturelles par la recherche et la valorisation des pratiques des savoir-faire, savoir-vivre et savoir-être itcha. La valorisation des rythmes itcha en vogue et ceux délaissés. Cette commission excite les apprenants à prendre goût de la chose culturelle.'],
+            ['5- La Commission Education Civique et Sociale', 'Cette commission travaille avec le Surveillant Général pour instaurer la discipline au CEG-Koko et sensibilise la population au respect des codes de la route.'],
+        ];
+
+        foreach ($commissions as $index => [$titre, $corps]) {
+            $this->creerContenu([
+                'rubrique' => 'parlement',
+                'titre' => $titre,
+                'resume' => Str::limit($corps, 180),
+                'corps' => $corps,
+                'auteur' => 'Parlement des Jeunes de Koko',
+                'date_publication' => '2017-11-01',
+                'image' => $images[$index + 1] ?? $image,
+                'categorie_id' => Categorie::where('slug', 'commissions')->value('id'),
+            ]);
+        }
+    }
+
+    private function seedPoemes(): void
+    {
+        $poemeAncetres = <<<'TEXTE'
+Contre le temps j’ai lutté en vain
+Pour qu’un jour, mes yeux croisent vos visages
+Ou mes pas rencontrent vos pas au passage
+Mais vous n’êtes plus à l’horizon lointain.
+
+Comme un fugitif oiseau
+Sous le calme de la ramure,
+Vous aviez doublé l’allure
+En direction de l’île du repos.
+
+De vos innombrables biens, un m’est précieux :
+Vos noms plus que souverains
+Que bégaient les gamins ;
+Et pour ce digne trésor, je bénis les cieux
+
+Car en ces noms se cache une abondance ;
+Comme la nuit du jour est la mère,
+Du lien entre ces noms et moi, sincère,
+Provient ma force, que dis-je ?  Mon essence.
+
+Toute ma vie est en vous : le tronc et les racines
+Ne sont mieux soudés que mon âme et les vôtres
+Tant de moi, vous avez fait un digne apôtre
+Soumis et obéissant à vos voix divines.
+
+Fortuné, l’enfant à la mémoire limpide
+Qui au lieu de bâtir sur du sable
+Vient construire un autel stable
+Sur le rocher de ses pères. Mon seul guide,
+
+C’est le doux murmure du vent
+Qui me souffle à l’oreille
+La voie qui mène au sérail
+Du savoir pur et pénétrant.
+
+Dans la funeste et opaque ombre
+Ma lumière, ce sont ces lanternes,
+Vos gracieux regards paternes
+Peuplés d’étincelles sans nombre.
+
+Quel puissant fleuve coulant ses eaux
+Oublie sa fidèle source ?
+Pour l’homme, la ressource,
+C’est l’aïeul des temps immémoriaux ;
+
+Pardonnez-moi, mémoire de mes pères ;
+Si mon cœur se prend d’un orgueil indocile,
+Je promets comme dans un rêve fragile
+Qu’à l’éternité vous seriez mon repère.
+
+Je voudrais reprendre le culte des temples
+Et donner à vos dieux domestiques
+La fraîche libation mystique
+Pour qu’à leurs yeux je sois un exemple.
+
+C’est par là que je peux, par une foi solide
+Vous marquer ma tendresse
+Et l’ardeur qui m’empresse
+A vous adorer d’un cœur intrépide
+
+Je voudrais que les progénitures
+Apprennent de votre vie austère
+L’admirable et le doux mystère
+De la vie dans la vérité et la droiture ;
+
+Ainsi, égarées, elles apercevront
+Dans le tumultueux fourmillement
+Des humains l’éclat de vos cheveux blancs
+Pour guider les âmes qui naîtront.
+
+C’est pourquoi, malgré les tempêtes,
+Je suis et veux demeurer POËTE
+
+Honneur et gloire à vous, ancêtres vénérés !
+Comme le chaton ne peut ressembler au chiot
+Que sur mon front se reflète votre bravoure,
+Que mon sang bouillonne de votre amour.
+Je voudrais vivre comme les héros de TCHIKO.
+
+Apprenez-moi l’art de triompher.
+Apprenez-moi, savants griots,
+Sous le rythme du GAMATO,
+La dance hardie des guerriers
+
+Hyacinthe Ademonla D. ATTOUNON
+TEXTE;
+
+        $poemeKoko = <<<'TEXTE'
+Le village de ma vie.
+Village de mon amour.
+Village de mon espoir.
+
+Toi qui m’as donné le jour.
+Toi qui me nourris par les richesses de ton sol,
+par la sueur de tes braves fils. Ecoute ma voix!
+Ecoute mon témoignage!
+Koko! Koko! Koko!
+
+Si j’étais né ailleurs, je l’aurais
+regretté car tu es un arbre de la paix,
+un eldorado. Loin de toi je maigrirai
+car ta chaleur me manquerait. Tu l’as
+compris et pour me garder encore pendant
+quatre ans dans tes seins, tu as créé un
+collège pour mon épanouissement intellectuel
+et pour ton rayonnement culturel.
+
+Koko! Tu dois rimer avec le sens de ton
+nom qui signifie l’harmonie, l’unité
+Loin de toi tout esprit d’inclusion,
+soit unis et indivisible. Itchokobo
+n’est qu’un petit de tes morceaux.
+Issalè n’est qu’un petit de tes morceaux.
+Tu ne peux construire l’un de tes multiples
+morceaux. Un morceau de moins tu n’es plus
+Koko, mais tu es Ko. Veux-tu t’opposer à
+l’unité de tes fils ? Bras valides ? Que
+chacun joue alors sa partition pour
+l’harmonie et pour le bonheur de tous.
+Toi, élève du CEG de Koko saches que tu
+as une mission, celle d’unir nos parents
+tel que nous sommes unis en salle.
+Pour suivre le cours d’un seul professeur
+tous à la fois, tu dois aussi relever
+le défi de l’honneur, le défi du succès,
+le défi de l’éclaireur. Mets-toi résolument
+au travail!
+
+Elève fille oublie ton sexe et ait de cœur
+qu’aux études.
+Elève garçon aide ta sœur à s’épanouir.
+Directeur, professeurs, montrez-nous
+seulement le bon chemin et nous vous
+suivrons. Nous vous promettons d’être
+une pépinière de cadres talentueux et
+vertueux pour l’utilité nationale.
+Nous vous promettons le BECP mérité
+un juin 2010.
+Que Dieu écoute nos vœux. Chef de
+l’arrondissement de Koko soutient nous.
+Parents, supportez nous! Amis et invités,
+encouragez nous!
+
+Merci!
+TEXTE;
+
+        $this->creerContenu([
+            'rubrique' => 'poeme',
+            'titre' => 'AUX MÂNES DES ANCÊTRES DE KOKO',
+            'resume' => 'Poème de Hyacinthe Ademonla D. ATTOUNON en hommage aux ancêtres de Koko.',
+            'corps' => $poemeAncetres,
+            'auteur' => 'Hyacinthe Ademonla D. ATTOUNON',
+            'date_publication' => '2010-01-01',
+            'a_la_une' => true,
+            'categorie_id' => Categorie::where('slug', 'poesie')->value('id'),
+        ]);
+
+        $this->creerContenu([
+            'rubrique' => 'poeme',
+            'titre' => 'POESIE : Koko',
+            'resume' => 'Poème dédié au village de Koko, à son unité et à son collège.',
+            'corps' => $poemeKoko,
+            'auteur' => 'Auteur inconnu',
+            'date_publication' => '2010-06-01',
+            'categorie_id' => Categorie::where('slug', 'poesie')->value('id'),
+        ]);
+    }
+
+    private function seedPagesInstitutionnelles(): void
+    {
+        $this->creerContenu([
+            'rubrique' => 'objectif',
+            'titre' => 'Nos objectifs',
+            'resume' => "Les objectifs de l'ONG Jeunes Dynamiques et Actions.",
+            'corps' => "L'ONG Jeunes Dynamiques et Actions (JDA) a pour objectif de:\n- oeuvrer pour l'excellence en milieu scolaire\n- Promouvoir l'entrepreneuriat des jeunes\n- Pormouvoir le droit des jeunes, des femmes et des enfants ainsi que des personnes handicapées\n- Oeuvre pour la restauration du couvert végétal.",
+            'auteur' => 'JDA',
+        ]);
+
+        $this->creerContenu([
+            'rubrique' => 'identification',
+            'titre' => 'Identification de l’association',
+            'resume' => 'La Voix d’Abouloussi, magazine de l’association des Jeunesses Développement Abouloussi.',
+            'corps' => "La Voix d'Abouloussi est le magazine de l'association des Jeunesses Développement Abouloussi (JDA), politiquement neutre et d'envergure nationale, dont le siège social est à Abomey-Calavi.\n\nContact : 08 BP 0266 Cotonou, Bénin — lavoixdabouloussi@gmail.com — contact@lavoixdabouloussi.org — +229 01 97 52 74 24 / +229 96 11 47 52.",
+            'auteur' => "La Voix d'Abouloussi",
+        ]);
+    }
+
+    private function seedArchivesDms(array $dms): void
+    {
+        foreach ($dms as $source => $chemin) {
+            $titre = Str::limit(pathinfo($source, PATHINFO_FILENAME), 120, '');
+            $this->creerContenu([
+                'rubrique' => 'dms',
+                'titre' => 'Archive DMS — '.$titre,
+                'resume' => 'Image historique de Delco Multi Services (DMS), anciennement publiée sur dms.lavoixdabouloussi.org.',
+                'corps' => 'Archive visuelle de Delco Multi Services. Le titre et la description d’origine n’ont pas été conservés dans la base historique.',
+                'auteur' => 'Delco Multi Services',
+                'image' => $chemin,
+                'date_publication' => '2025-07-01',
+                'categorie_id' => Categorie::where('slug', 'archives-dms')->value('id'),
+            ]);
+        }
+    }
+
+    private function seedAlbums(array $jda, array $rapport1, array $rapport2, array $rapport3, array $parlement, array $parlementRacine): void
+    {
+        $albums = [
+            ['Album photos du JDA', 'jda', 'Photos des activités de la Jeunesse Développement Abouloussi.', '2024-03-05', $jda],
+            ['Rapport d’activité 1 — Plénière du PJK', 'jda', 'Photos de la première plénière du Parlement des Jeunes de Koko.', '2025-01-09', $rapport1],
+            ['Rapport d’activité 2 — Formation en savonnerie', 'jda', 'Photos de la formation en savonnerie à Parakou.', '2025-01-10', $rapport2],
+            ['Rapport d’activité 3 — Laboratoire du CEG Koko', 'jda', 'Photos de la rencontre au laboratoire du CEG Koko et à Ayékè.', '2025-01-10', $rapport3],
+            ['Parlement des Jeunes de Koko', 'parlement', 'Sessions et élections du Parlement des Jeunes de Koko.', '2018-05-01', array_merge($parlement, $parlementRacine)],
+        ];
+
+        foreach ($albums as [$titre, $rubrique, $description, $date, $photos]) {
+            $slug = Str::slug($titre);
+            $album = Album::firstOrCreate(['slug' => $slug], [
+                'titre' => $titre,
+                'description' => $description,
+                'rubrique' => $rubrique,
+                'couverture' => array_values($photos)[0] ?? null,
+                'date_album' => $date,
+                'statut' => 'publie',
+            ]);
+
+            if ($album->wasRecentlyCreated) {
+                $this->albumsCrees++;
+            }
+
+            foreach (array_values($photos) as $ordre => $chemin) {
+                $existe = AlbumPhoto::where('album_id', $album->id)->where('image', $chemin)->exists();
+                if (! $existe) {
+                    AlbumPhoto::create([
+                        'album_id' => $album->id,
+                        'image' => $chemin,
+                        'legende' => pathinfo($chemin, PATHINFO_FILENAME),
+                        'ordre' => $ordre,
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function seedRayons(): void
+    {
+        $sql = $this->source.'/market.lavoixdabouloussi.org/supermarche.sql';
+        if (! File::exists($sql)) {
+            return;
+        }
+
+        $contenu = File::get($sql);
+        if (! preg_match_all("/\((\d+),\s*'([^']+)',\s*'([\d.]+)'\)/", $contenu, $matches, PREG_SET_ORDER)) {
+            return;
+        }
+
+        foreach ($matches as $match) {
+            Rayon::firstOrCreate(['nom' => $match[2]], ['taux' => (float) $match[3]]);
+        }
+    }
+
+    private function lierImagesParametres(array $accueil, array $equipe, array $icones, array $uploads): void
+    {
+        $slider = array_values($accueil);
+        foreach ([1, 2, 3] as $index) {
+            if (isset($slider[$index - 1])) {
+                SiteSetting::updateOrCreate(['cle' => "slider_{$index}"], [
+                    'libelle' => "Image du slider {$index}",
+                    'valeur' => $slider[$index - 1],
+                    'groupe' => 'accueil',
+                ]);
+            }
+        }
+
+        $equipeImages = array_values($equipe);
+        foreach ([1, 2] as $index) {
+            if (isset($equipeImages[$index - 1])) {
+                SiteSetting::updateOrCreate(['cle' => "equipe_{$index}"], [
+                    'libelle' => "Photo administrateur {$index}",
+                    'valeur' => $equipeImages[$index - 1],
+                    'groupe' => 'contact',
+                ]);
+            }
+        }
+
+        $icone = array_values($icones)[0] ?? null;
+        if ($icone) {
+            SiteSetting::updateOrCreate(['cle' => 'favicon'], ['libelle' => 'Favicon DMS', 'valeur' => $icone, 'groupe' => 'general']);
+        }
+
+        $imageUpload = collect($uploads)->first(fn ($chemin) => str_ends_with($chemin, '.jpg') || str_ends_with($chemin, '.png'));
+        if ($imageUpload) {
+            SiteSetting::updateOrCreate(['cle' => 'og_image'], ['libelle' => 'Image de partage', 'valeur' => $imageUpload, 'groupe' => 'general']);
+        }
+    }
+
+    private function creerLienStorage(): void
+    {
+        $lien = public_path('storage');
+        if (! File::exists($lien)) {
+            File::link(storage_path('app/public'), $lien);
+        }
+    }
+}
