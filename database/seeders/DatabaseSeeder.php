@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,11 +16,21 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $email = env('ADMIN_EMAIL', 'admin@lavoixdabouloussi.org');
+        $motDePasse = env('ADMIN_PASSWORD');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        if (! $motDePasse) {
+            throw new RuntimeException('Définissez ADMIN_PASSWORD dans .env avant de lancer db:seed.');
+        }
+
+        User::updateOrCreate(
+            ['email' => $email],
+            [
+                'name' => 'Administrateur principal',
+                'password' => Hash::make($motDePasse),
+                'role' => 'admin',
+                'actif' => true,
+            ],
+        );
     }
 }
