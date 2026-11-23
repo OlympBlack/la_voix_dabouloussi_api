@@ -36,6 +36,5 @@ jobs:
             **/.git*
             **/.git*/**
             **/.env
-            **/vendor/**
             **/tests/**
             **/storage/logs/**
