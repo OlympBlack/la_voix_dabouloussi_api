@@ -1,0 +1,41 @@
+on: 
+  push: 
+    branches: [main]
+
+name: Deploy website on push
+
+jobs:
+  web-deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      # Récupère le code source du dépôt GitHub dans le runner
+      - name: Get latest code
+        uses: actions/checkout@v4
+
+      # Vérification de présence des secrets FTP
+      - name: Verify FTP Secrets
+        run: |
+          echo "=== Vérification des secrets FTP Backend ==="
+          if [ -z "${{ secrets.FTP_SERVER }}" ]; then echo "❌ Secret FTP_SERVER manquant ou vide !"; else echo "✅ FTP_SERVER présent"; fi
+          if [ -z "${{ secrets.FTP_USERNAME }}" ]; then echo "❌ Secret FTP_USERNAME manquant ou vide !"; else echo "✅ FTP_USERNAME présent"; fi
+          if [ -z "${{ secrets.FTP_PASSWORD }}" ]; then echo "❌ Secret FTP_PASSWORD manquant ou vide !"; else echo "✅ FTP_PASSWORD présent"; fi
+
+      # Envoie les fichiers du dossier backend/ vers le serveur via FTP
+      # Les fichiers sensibles (.env, vendor, .git) sont exclus
+      - name: Sync files
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ./
+          local-dir: ./
+          log-level: verbose
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.env
+            **/vendor/**
+            **/tests/**
+            **/storage/logs/**
