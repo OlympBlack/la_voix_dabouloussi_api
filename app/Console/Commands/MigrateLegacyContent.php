@@ -560,39 +560,34 @@ TEXTE;
 
     private function seedParlement(array $parlement, array $parlementRacine): void
     {
-        $images = array_values($parlement);
-        $image = $images[0] ?? array_values($parlementRacine)[0] ?? null;
+        Contenu::where('rubrique', 'parlement')->whereIn('titre', [
+            'Parlement des Jeunes de Koko — Mission',
+            '1- La Commission Environnement',
+            '2- La commission Education Sexuelle',
+            '3- La Commission Education Scolaire',
+            '4- La Commission Loisirs et Culture',
+            '5- La Commission Education Civique et Sociale',
+        ])->delete();
 
-        $this->creerContenu([
-            'rubrique' => 'parlement',
-            'titre' => 'Parlement des Jeunes de Koko — Mission',
-            'resume' => 'Briser le joug de la honte de parler en publique (ce qui s’observe chez nombre d’apprenants de la localité) et amener les responsable à débattre des problèmes que rencontrent les élèves durant leur cursus en vue de trouver des voies de sortie.',
-            'corps' => 'Le Parlement des Jeunes de Koko est composé de cinq commissions à savoir : la commission Environnement, commission Education Scolaire, Commission Education Sexuelle, Commission Loisirs et Culture et la Commission Education Civique et Sociale.',
-            'auteur' => 'Parlement des Jeunes de Koko',
-            'image' => $image,
-            'date_publication' => '2017-11-01',
-            'a_la_une' => true,
-            'categorie_id' => Categorie::where('slug', 'sessions')->value('id'),
-        ]);
+        $imageParDefaut = array_values($parlement)[0] ?? array_values($parlementRacine)[0] ?? null;
 
-        $commissions = [
-            ['1- La Commission Environnement', "Cette commission se charge des questions de gestion de l'environnement. Elle organise des journées de salubrité et de reboisement dans les villages en vue de lutter contre la DAL et la désertification. Sensibilise pour l'atteinte des ODD."],
-            ['2- La commission Education Sexuelle', "Elle travaille en collaboration avec les agents de santé de l'arrondissement de Koko, ceux de l'hôpital de Bantè et l'hôpital de zone de Savalou. Les points capitaux de ses interventions sont la lutte contre les grossesses en milieu scolaire, l'éducation à la santé sexuelle et l'encouragement à l'utilisation des méthodes de contraception. Cette commission dispose d'une cellule de consultation en conseils et accompagnement en cas de difficulté."],
-            ['3- La Commission Education Scolaire', "C'est la commission la plus proche de l'administration et de l'Association des Parents d'Elève. Elle veille au bon déroulement des activités pédagogiques et exhorte surtout les élèves à donner le meilleur d'eux-mêmes. Elle initie depuis 2017 l'organisation des séances de renforcement des capacités en collaboration avec la Fondation Tobé."],
-            ['4- La Commission Loisirs et Culture', 'Elle se charge des animations culturelles par la recherche et la valorisation des pratiques des savoir-faire, savoir-vivre et savoir-être itcha. La valorisation des rythmes itcha en vogue et ceux délaissés. Cette commission excite les apprenants à prendre goût de la chose culturelle.'],
-            ['5- La Commission Education Civique et Sociale', 'Cette commission travaille avec le Surveillant Général pour instaurer la discipline au CEG-Koko et sensibilise la population au respect des codes de la route.'],
+        $photos = [
+            ['2ème assemblée à la maison des jeunes Akpon Makoro à Koko 2-2019', '2eme-assemblee-a-la-maison-des-jeunes-akpon-makoro-a-koko-2-2019.jpeg', '2019-02-01'],
+            ['L\'élection du président sur la colline de Tobé 11-2017', 'lelection-du-president-sur-la-colline-de-tobe-11-2017.jpeg', '2017-11-01'],
+            ['Présentation lors de la réstitution de la commission culture et loisir 5-2022', 'presentation-lors-de-la-restitution-de-la-commission-culture-et-loisir-5-2022.jpeg', '2022-05-01'],
+            ['Session à la mairie de Bantè 5-2018', 'session-a-la-mairie-de-bante-5-2018.jpeg', '2018-05-01'],
         ];
 
-        foreach ($commissions as $index => [$titre, $corps]) {
+        foreach ($photos as [$titre, $fichier, $datePublication]) {
             $this->creerContenu([
                 'rubrique' => 'parlement',
                 'titre' => $titre,
-                'resume' => Str::limit($corps, 180),
-                'corps' => $corps,
+                'resume' => '',
+                'corps' => '',
                 'auteur' => 'Parlement des Jeunes de Koko',
-                'date_publication' => '2017-11-01',
-                'image' => $images[$index + 1] ?? $image,
-                'categorie_id' => Categorie::where('slug', 'commissions')->value('id'),
+                'image' => $this->trouverImage($parlement, $fichier) ?? $imageParDefaut,
+                'date_publication' => $datePublication,
+                'categorie_id' => Categorie::where('slug', 'sessions')->value('id'),
             ]);
         }
     }
