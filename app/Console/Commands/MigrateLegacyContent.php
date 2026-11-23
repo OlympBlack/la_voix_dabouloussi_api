@@ -859,12 +859,17 @@ TEXTE;
             'img-20250110-wa0033.jpg',
         ]);
 
+        $photosParlement = array_values(array_filter(
+            array_merge($parlement, $parlementRacine),
+            fn (string $chemin): bool => ! str_ends_with($chemin, '/r.jpg'),
+        ));
+
         $albums = [
             ['Album photos du JDA', 'jda', 'Photos des activités des Jeunes Dynamiques et Actions.', '2024-03-05', $jda],
             ['Rapport d’activité 1 — Plénière du PJK', 'jda', 'Photos de la première plénière du Parlement des Jeunes de Koko.', '2025-01-09', $rapport1],
             ['Rapport d’activité 2 — Formation en savonnerie', 'jda', 'Photos de la formation en savonnerie à Parakou.', '2025-01-10', $rapport2],
             ['Rapport d’activité 3 — Laboratoire du CEG Koko', 'jda', 'Photos de la rencontre au laboratoire du CEG Koko et à Ayékè.', '2025-01-10', $rapport3],
-            ['Parlement des Jeunes de Koko', 'parlement', 'Sessions et élections du Parlement des Jeunes de Koko.', '2018-05-01', array_merge($parlement, $parlementRacine)],
+            ['Parlement des Jeunes de Koko', 'parlement', 'Sessions et élections du Parlement des Jeunes de Koko.', '2018-05-01', $photosParlement],
         ];
 
         foreach ($albums as [$titre, $rubrique, $description, $date, $photos]) {
@@ -892,6 +897,10 @@ TEXTE;
                 ]);
             }
         }
+
+        AlbumPhoto::whereHas('album', fn ($query) => $query->where('slug', 'parlement-des-jeunes-de-koko'))
+            ->where('image', 'media/parlement/images/r.jpg')
+            ->delete();
     }
 
     private function seedRayons(): void
