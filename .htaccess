@@ -5,6 +5,8 @@
 
     RewriteEngine On
 
+    RewriteRule ^$ public/index.php [L]
+
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
