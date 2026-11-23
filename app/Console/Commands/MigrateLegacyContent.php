@@ -172,7 +172,7 @@ Dans la quête permanente des fondements de la société itcha, cette rubrique e
 TEXTE;
 
         $jdaIntro = <<<'TEXTE'
-L'ONG Jeunes Dynamiques et Actions (JDA) est une organisation à but non lucratif règle par la loi de 1901. Elle est politiquement neutre et d'énvergure nationale.
+Jeunes Dynamiques et Actions (JDA) est une ONG à but non lucratif, apolitique et à caractère social, implantée à Koko, dans la commune de Bantè, et régie par la loi n°2025-19 du 22 juillet 2025 et le décret n°2025-638 du 8 octobre 2025 en République du Bénin. Fondée à Abomey-Calavi, elle a son siège social à Akpon-Mankoro, Issalè/Koko.
 TEXTE;
 
         $jdaObjectifs = <<<'TEXTE'
@@ -217,8 +217,8 @@ TEXTE;
             ['administrateur4', 'Administrateur historique 4', 'Delco ADOGBO', 'contact'],
             ['contact_admin_1', 'Administratrice historique', 'Karin OSTERTAG', 'contact'],
             ['contact_admin_2', 'Administrateur historique', 'Ademonla Hyacinth ATTOUNON', 'contact'],
-            ['jda_email', 'E-mail JDA', 'ongjda@mail.com', 'jda'],
-            ['jda_telephone', 'Téléphones JDA', '66391089 / 97959660', 'jda'],
+            ['jda_email', 'E-mail JDA', 'ongjda@gmail.com', 'jda'],
+            ['jda_telephone', 'Téléphones JDA', '01 45 79 32 39', 'jda'],
             ['jda_siege', 'Siège JDA', 'Abomey-Calavi', 'jda'],
             ['jda_image', 'Image JDA', '', 'jda'],
             ['jda_intro', 'Introduction JDA', $jdaIntro, 'jda'],
